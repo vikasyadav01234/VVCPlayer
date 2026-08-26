@@ -1,0 +1,51 @@
+{
+  "name": "vvc-player",
+  "version": "1.0.0",
+  "description": "VVC Player — A modern video player with PiP, Equalizer & Watch Party",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder --win --x64",
+    "pack": "electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.vvcplayer.app",
+    "productName": "VVC Player",
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icons/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ]
+  },
+  "keywords": [
+    "video-player",
+    "media-player",
+    "electron"
+  ],
+  "author": "VVC Player Team",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "ws": "8.18.0"
+  },
+  "allowScripts": {
+    "electron@31.7.7": true
+  }
+}

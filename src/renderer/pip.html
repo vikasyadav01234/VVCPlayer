@@ -1,0 +1,474 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>VVC PiP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --accent: #6c63ff;
+    --accent2: #00d4ff;
+    --danger: #ff4466;
+    --radius: 8px;
+  }
+
+  html, body {
+    width: 100vw; height: 100vh;
+    background: #000;
+    overflow: hidden;
+    user-select: none;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  /* Video fills entire window */
+  #pipVideo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    background: #000;
+  }
+
+  /* Drag region - whole window is draggable except controls */
+  .drag-region {
+    position: absolute;
+    inset: 0;
+    -webkit-app-region: drag;
+    z-index: 1;
+  }
+
+  /* Controls container - shown on hover */
+  .pip-controls {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    -webkit-app-region: no-drag;
+  }
+
+  body:hover .pip-controls { opacity: 1; }
+
+  /* Top bar: title + close */
+  .pip-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px 20px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, transparent 100%);
+  }
+
+  .pip-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.9);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 75%;
+    letter-spacing: 0.2px;
+  }
+
+  .pip-badge {
+    background: linear-gradient(135deg, #6c63ff, #00d4ff);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+
+  /* Bottom controls */
+  .pip-bottom {
+    padding: 20px 12px 12px;
+    background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Progress bar */
+  .pip-progress-wrap {
+    position: relative;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+  }
+
+  .pip-progress-track {
+    width: 100%;
+    height: 3px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 3px;
+    position: relative;
+    transition: height 0.15s;
+  }
+
+  .pip-progress-wrap:hover .pip-progress-track { height: 5px; }
+
+  .pip-progress-buf {
+    position: absolute; top: 0; left: 0; height: 100%;
+    background: rgba(255,255,255,0.25);
+    border-radius: 3px;
+    pointer-events: none;
+  }
+
+  .pip-progress-fill {
+    position: absolute; top: 0; left: 0; height: 100%;
+    background: linear-gradient(90deg, #6c63ff, #00d4ff);
+    border-radius: 3px;
+    pointer-events: none;
+    transition: width 0.1s linear;
+  }
+
+  .pip-progress-thumb {
+    position: absolute;
+    top: 50%;
+    width: 11px; height: 11px;
+    background: #fff;
+    border-radius: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    box-shadow: 0 0 6px rgba(108,99,255,0.8);
+    pointer-events: none;
+    transition: transform 0.15s;
+  }
+
+  .pip-progress-wrap:hover .pip-progress-thumb { transform: translate(-50%, -50%) scale(1); }
+
+  /* Buttons row */
+  .pip-btn-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .pip-btn-left, .pip-btn-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .pip-btn {
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: rgba(255,255,255,0.9);
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+    backdrop-filter: blur(4px);
+    flex-shrink: 0;
+  }
+
+  .pip-btn:hover { background: rgba(255,255,255,0.22); transform: scale(1.1); }
+  .pip-btn:active { transform: scale(0.92); }
+
+  /* Big play button */
+  .pip-play-btn {
+    background: linear-gradient(135deg, #6c63ff, #00d4ff) !important;
+    width: 38px !important; height: 38px !important;
+    box-shadow: 0 3px 14px rgba(108,99,255,0.5);
+  }
+  .pip-play-btn:hover { box-shadow: 0 5px 20px rgba(108,99,255,0.7) !important; }
+
+  /* Close button */
+  .pip-close-btn {
+    background: rgba(255, 68, 102, 0.75) !important;
+    border: none !important;
+  }
+  .pip-close-btn:hover { background: #ff4466 !important; }
+
+  /* Volume row */
+  .pip-vol-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .pip-vol-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 60px;
+    height: 3px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.2);
+    outline: none;
+    cursor: pointer;
+  }
+
+  .pip-vol-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6c63ff, #00d4ff);
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(108,99,255,0.6);
+  }
+
+  /* Time display */
+  .pip-time {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.75);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.3px;
+  }
+
+  /* Speed label */
+  .pip-speed {
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.6);
+    min-width: 28px;
+    text-align: center;
+    cursor: pointer;
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 2px 6px;
+    border: none;
+    font-family: 'Inter', system-ui, sans-serif;
+    transition: background 0.15s;
+  }
+  .pip-speed:hover { background: rgba(108,99,255,0.4); color: #fff; }
+
+  /* Resize corner hint */
+  .pip-resize-hint {
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 14px; height: 14px;
+    opacity: 0.3;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<video id="pipVideo" preload="metadata"></video>
+<div class="drag-region" id="dragRegion"></div>
+
+<div class="pip-controls" id="pipControls">
+  <!-- Top bar -->
+  <div class="pip-top">
+    <span class="pip-title" id="pipTitle">VVC Player</span>
+    <span class="pip-badge">PiP</span>
+  </div>
+
+  <!-- Bottom controls -->
+  <div class="pip-bottom">
+    <!-- Progress bar -->
+    <div class="pip-progress-wrap" id="pipProgressWrap">
+      <div class="pip-progress-track">
+        <div class="pip-progress-buf" id="pipBuf"></div>
+        <div class="pip-progress-fill" id="pipFill"></div>
+        <div class="pip-progress-thumb" id="pipThumb"></div>
+      </div>
+    </div>
+
+    <!-- Controls row -->
+    <div class="pip-btn-row">
+      <div class="pip-btn-left">
+        <!-- Prev 10s -->
+        <button class="pip-btn" id="pipSeekBack" title="Back 10s">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/>
+          </svg>
+        </button>
+
+        <!-- Play/Pause -->
+        <button class="pip-btn pip-play-btn" id="pipPlayBtn" title="Play/Pause (Space)">
+          <svg id="pipIconPlay" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+          <svg id="pipIconPause" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+          </svg>
+        </button>
+
+        <!-- Next 10s -->
+        <button class="pip-btn" id="pipSeekFwd" title="Forward 10s">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Center: time -->
+      <span class="pip-time" id="pipTime">0:00 / 0:00</span>
+
+      <div class="pip-btn-right">
+        <!-- Volume toggle -->
+        <button class="pip-btn" id="pipMuteBtn" title="Mute (M)">
+          <svg id="pipVolIcon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+          </svg>
+          <svg id="pipMuteIcon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+            <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+          </svg>
+        </button>
+
+        <!-- Volume slider -->
+        <input type="range" class="pip-vol-slider" id="pipVolSlider" min="0" max="100" value="80">
+
+        <!-- Speed -->
+        <button class="pip-speed" id="pipSpeedBtn" title="Click to cycle speed">1.0x</button>
+
+        <!-- Close -->
+        <button class="pip-btn pip-close-btn" id="pipCloseBtn" title="Close PiP (Esc)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Resize hint arrow -->
+<svg class="pip-resize-hint" viewBox="0 0 14 14" fill="rgba(255,255,255,0.5)">
+  <path d="M14 14H8l2-2-4-4 2-2 4 4 2-2V14z"/>
+</svg>
+
+<script>
+const { ipcRenderer } = require('electron');
+const video = document.getElementById('pipVideo');
+
+// ── State ──
+let isDragging = false;
+let isMuted = false;
+let pipVolume = 80;
+const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+let speedIdx = 2;
+
+// ── Init from main ──
+ipcRenderer.on('pip-init', (_, data) => {
+  video.src = data.src;
+  video.volume = pipVolume / 100;
+  video.play().catch(() => {});
+  document.getElementById('pipTitle').textContent = data.title || 'VVC Player';
+});
+
+// ── Sync from main player ──
+ipcRenderer.on('pip-sync', (_, data) => {
+  if (Math.abs(video.currentTime - data.currentTime) > 0.8)
+    video.currentTime = data.currentTime;
+  if (data.paused && !video.paused) video.pause();
+  else if (!data.paused && video.paused) video.play().catch(() => {});
+  updatePlayIcon();
+});
+
+// ── Helpers ──
+function fmt(s) {
+  if (isNaN(s)) return '0:00';
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2,'0')}`;
+}
+
+function updatePlayIcon() {
+  document.getElementById('pipIconPlay').style.display  = video.paused ? '' : 'none';
+  document.getElementById('pipIconPause').style.display = video.paused ? 'none' : '';
+}
+
+function updateVolIcon() {
+  document.getElementById('pipVolIcon').style.display  = isMuted ? 'none' : '';
+  document.getElementById('pipMuteIcon').style.display = isMuted ? '' : 'none';
+}
+
+function updateProgress() {
+  if (isDragging || !video.duration) return;
+  const pct = (video.currentTime / video.duration) * 100;
+  document.getElementById('pipFill').style.width  = pct + '%';
+  document.getElementById('pipThumb').style.left  = pct + '%';
+  document.getElementById('pipTime').textContent  = `${fmt(video.currentTime)} / ${fmt(video.duration)}`;
+}
+
+// ── Video events ──
+video.addEventListener('timeupdate', updateProgress);
+video.addEventListener('play',   updatePlayIcon);
+video.addEventListener('pause',  updatePlayIcon);
+video.addEventListener('ended',  updatePlayIcon);
+
+video.addEventListener('progress', () => {
+  if (video.buffered.length && video.duration) {
+    const buf = (video.buffered.end(video.buffered.length - 1) / video.duration) * 100;
+    document.getElementById('pipBuf').style.width = buf + '%';
+  }
+});
+
+// ── Controls ──
+document.getElementById('pipPlayBtn').onclick = () => {
+  if (video.paused) video.play().catch(() => {});
+  else video.pause();
+};
+
+document.getElementById('pipSeekBack').onclick = () => { video.currentTime = Math.max(0, video.currentTime - 10); };
+document.getElementById('pipSeekFwd').onclick  = () => { video.currentTime = Math.min(video.duration || 0, video.currentTime + 10); };
+
+document.getElementById('pipMuteBtn').onclick = () => {
+  isMuted = !isMuted;
+  video.muted = isMuted;
+  updateVolIcon();
+};
+
+// Volume slider
+const volSlider = document.getElementById('pipVolSlider');
+volSlider.addEventListener('input', () => {
+  pipVolume = parseInt(volSlider.value);
+  video.volume = pipVolume / 100;
+  const pct = pipVolume;
+  volSlider.style.background = `linear-gradient(90deg, #6c63ff ${pct}%, rgba(255,255,255,0.2) ${pct}%)`;
+});
+volSlider.style.background = 'linear-gradient(90deg, #6c63ff 80%, rgba(255,255,255,0.2) 80%)';
+
+// Speed cycle
+document.getElementById('pipSpeedBtn').onclick = () => {
+  speedIdx = (speedIdx + 1) % speeds.length;
+  video.playbackRate = speeds[speedIdx];
+  document.getElementById('pipSpeedBtn').textContent = speeds[speedIdx] + 'x';
+};
+
+// Close
+document.getElementById('pipCloseBtn').onclick = () => ipcRenderer.send('pip-close');
+
+// Progress seek
+const wrap = document.getElementById('pipProgressWrap');
+wrap.addEventListener('mousedown', (e) => { isDragging = true; seekAt(e); });
+document.addEventListener('mousemove', (e) => { if (isDragging) seekAt(e); });
+document.addEventListener('mouseup',   () => { isDragging = false; });
+
+function seekAt(e) {
+  if (!video.duration) return;
+  const rect = wrap.getBoundingClientRect();
+  const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  video.currentTime = pct * video.duration;
+  document.getElementById('pipFill').style.width = (pct * 100) + '%';
+  document.getElementById('pipThumb').style.left = (pct * 100) + '%';
+}
+
+// Keyboard shortcuts (non-drag area)
+document.addEventListener('keydown', (e) => {
+  switch (e.code) {
+    case 'Space':       e.preventDefault(); document.getElementById('pipPlayBtn').click(); break;
+    case 'Escape':      ipcRenderer.send('pip-close'); break;
+    case 'ArrowLeft':   video.currentTime = Math.max(0, video.currentTime - 10); break;
+    case 'ArrowRight':  video.currentTime = Math.min(video.duration || 0, video.currentTime + 10); break;
+    case 'ArrowUp':     pipVolume = Math.min(100, pipVolume + 10); volSlider.value = pipVolume; volSlider.dispatchEvent(new Event('input')); break;
+    case 'ArrowDown':   pipVolume = Math.max(0, pipVolume - 10); volSlider.value = pipVolume; volSlider.dispatchEvent(new Event('input')); break;
+    case 'KeyM':        document.getElementById('pipMuteBtn').click(); break;
+  }
+});
+</script>
+</body>
+</html>
